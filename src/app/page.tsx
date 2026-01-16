@@ -36,29 +36,29 @@ export default function StudyChat() {
   const stopRef = useRef(false)
   const isAtBottomRef = useRef(true)
 
-  // Detect scroll position
+  // ---------------- Scroll detection ----------------
   const handleScroll = () => {
     const el = scrollRef.current
     if (!el) return
-    const threshold = 80
+    const threshold = 100
     isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold
   }
 
-  // Auto-scroll if at bottom
+  // ---------------- Auto scroll ----------------
   useEffect(() => {
     if (isAtBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" })
     }
   }, [messages])
 
-  // Stop streaming
+  // ---------------- Stop streaming ----------------
   const stopStreaming = () => {
     stopRef.current = true
     abortRef.current?.abort()
     setStreaming(false)
   }
 
-  // Send message
+  // ---------------- Send message ----------------
   const sendMessage = async () => {
     if (!input.trim() || streaming) return
 
@@ -74,7 +74,6 @@ export default function StudyChat() {
       content: "",
     }
 
-    // Add user + assistant message placeholders
     setMessages((prev) => [...prev, userMessage, assistantMessage])
     setInput("")
     setStreaming(true)
@@ -92,26 +91,24 @@ export default function StudyChat() {
       })
 
       if (!res.body) throw new Error("No stream")
-
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ""
       let displayed = ""
 
+      // Faster smooth streaming
       while (true) {
         if (stopRef.current) break
-
         const { value, done } = await reader.read()
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
 
-        // Render character by character smoothly
         while (buffer.length > 0) {
           if (stopRef.current) break
-
-          displayed += buffer[0]
-          buffer = buffer.slice(1)
+          // take 2 chars at once for faster rendering
+          displayed += buffer.slice(0, 2)
+          buffer = buffer.slice(2)
 
           setMessages((prev) =>
             prev.map((m) =>
@@ -119,13 +116,11 @@ export default function StudyChat() {
             )
           )
 
-          // Auto scroll if user at bottom
-          if (isAtBottomRef.current) {
-            bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-          }
+          // Auto scroll if at bottom
+          if (isAtBottomRef.current) bottomRef.current?.scrollIntoView({ behavior: "smooth" })
 
-          // Wait for 15ms to slow down token streaming
-          await new Promise((r) => setTimeout(r, 15))
+          // Slight delay for smooth effect
+          await new Promise((r) => setTimeout(r, 10))
         }
       }
     } catch {
@@ -141,21 +136,22 @@ export default function StudyChat() {
     }
   }
 
+  // ---------------- UI ----------------
   return (
-    <div className="flex h-screen flex-col bg-slate-50 overflow-hidden">
+    <div className="flex h-screen flex-col bg-slate-50 text-slate-900 overflow-hidden">
       {/* Header */}
-      <header className="shrink-0 border-b bg-white/70 backdrop-blur">
+      <header className="shrink-0 border-b bg-white/80 backdrop-blur shadow-sm">
         <div className="mx-auto max-w-4xl px-4 py-3 font-semibold text-sm">
           📘 Study Assistant
         </div>
       </header>
 
       {/* Chat */}
-      <ScrollArea className="flex-1 min-h-0">
+      <ScrollArea className="flex-1 min-h-0 bg-slate-50">
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="mx-auto max-w-4xl px-4 py-8 space-y-6 pb-32 overflow-auto"
+          className="mx-auto max-w-4xl px-4 py-8 space-y-4 pb-32 overflow-auto"
         >
           {messages.map((msg) => (
             <div
@@ -167,11 +163,11 @@ export default function StudyChat() {
             >
               <div
                 className={cn(
-                  "rounded-xl px-4 py-3 text-sm leading-relaxed",
+                  "rounded-2xl px-5 py-3 text-sm leading-relaxed shadow-sm",
                   "max-w-[85%] sm:max-w-[70%]",
                   msg.role === "user"
                     ? "bg-indigo-500 text-white"
-                    : "bg-slate-100 border"
+                    : "bg-white border border-slate-200"
                 )}
               >
                 {msg.content ? (
@@ -188,7 +184,7 @@ export default function StudyChat() {
                           )
                         }
                         return (
-                          <pre className="my-3 overflow-x-auto rounded-lg bg-slate-900 p-4 text-sm text-slate-100">
+                          <pre className="my-2 overflow-x-auto rounded-lg bg-slate-900 p-3 text-sm text-slate-100">
                             <code>{children}</code>
                           </pre>
                         )
@@ -198,9 +194,7 @@ export default function StudyChat() {
                     {msg.content}
                   </ReactMarkdown>
                 ) : (
-                  <span className="animate-pulse text-slate-400">
-                    Thinking…
-                  </span>
+                  <span className="animate-pulse text-slate-400">Thinking…</span>
                 )}
               </div>
             </div>
